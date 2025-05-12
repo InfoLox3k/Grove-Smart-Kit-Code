@@ -6,11 +6,28 @@
 
 SI114X SI1145 = SI114X();
 
-//переменные к поливу
-// Определяем пин, к которому подключен датчик
-const int flowSensorPin = 6;
+// Определите размеры дисплея
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
 
-const int WaterPumpPin = 7;
+// Создайте объект дисплея
+int SSD1306_I2C_ADDRESS = -2;
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, SSD1306_I2C_ADDRESS); // -1 для использования встроенного I2C
+
+// Определяем пины для подключения энкодера
+const int pinA = 2; // Пин A
+const int pinB = 3; // Пин B
+
+volatile int encoderValue = 0; // Переменная для хранения значения энкодера
+volatile bool lastStateA; // Хранит предыдущее состояние A
+
+int button_pin = 8;
+
+const int sensorPin = A0; // Пин, к которому подключен датчик
+
+//полив
+// Определяем пин, к которому подключен датчик
+const int flowSensorPin = 7;
 
 // Переменные для хранения данных
 volatile int flowCount; // Счетчик импульсов
@@ -21,31 +38,6 @@ unsigned long lastTime; // Время последнего обновления
 int wateringDuration = 10; // Длительность полива в минутах
 unsigned long wateringStartTime = 0; // Время начала полива
 bool isWatering = false; // Состояние полива
-
-
-//переменные к дисплею
-// Определите размеры дисплея
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-
-// Создайте объект дисплея
-int SSD1306_I2C_ADDRESS = -2;
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, SSD1306_I2C_ADDRESS); // -1 для использования встроенного I2C
-
-//энкодер
-// Определяем пины для подключения энкодера
-const int pinA = 2; // Пин A
-const int pinB = 3; // Пин B
-
-volatile int encoderValue = 0; // Переменная для хранения значения энкодера
-volatile bool lastStateA; // Хранит предыдущее состояние A
-
-//кнопка
-int button_pin = 8;
-
-//сенсор влаги в почве
-const int sensorPin = A0; // Пин, к которому подключен датчик
-
 
 
 void updateEncoder() {
@@ -66,58 +58,16 @@ void updateEncoder() {
   lastStateA = currentStateA;
 }
 
-int ValueButton(){
-  int button_state = digitalRead(button_pin);
-  Serial.println(button_state);
-  return button_state;
+
+// Функция для запуска полива
+void startWatering() {
+  Serial.println("Полив начат.");
+  isWatering = true;
+  digitalWrite(6, HIGH);
+  wateringStartTime = millis();
+  // Здесь можно добавить код для включения насоса или клапана
 }
 
-int MoistureSensor(){
-    int sensorValue = analogRead(sensorPin); // Считываем значение с датчика
-    Serial.print("Soil Moisture Level: ");
-    Serial.println(sensorValue); // Выводим значение в последовательный монитор
-    return sensorValue;
-}
-
-int SunLightSensor(){
-    Serial.print("//--------------------------------------//\r\n");
-    
-    int visible = SI1145.ReadVisible();
-    int ir = SI1145.ReadIR();
-    int uv = SI1145.ReadUV();
-
-    Serial.print("Vis: "); Serial.println(visible);
-    Serial.print("IR: "); Serial.println(ir);
-    Serial.print("UV: "); Serial.println((float)uv / 100); // UV значение делим на 100
-
-    // Добавьте вывод текущего времени для отладки
-    Serial.print("Current Time: "); Serial.println(millis());
-    
-    return visible;
-}
-
-void Watering(){
-  // Проверяем, прошло ли 1 секунда
-  if (millis() - lastTime >= 1000) {
-    // Рассчитываем скорость потока в мл/с
-    flowRate = (flowCount * 1000.0) / 7.5; // Примерный коэффициент для миллилитров в секунду (может варьироваться)
-    
-    // Выводим данные в последовательный порт
-    Serial.print("Счетчик: ");
-    Serial.print(flowCount);
-    Serial.print(" | Скорость потока: ");
-    Serial.print(flowRate);
-    Serial.println(" мл/с");
-    
-    // Сбрасываем счетчик
-    flowCount = 0;
-    lastTime = millis();
-  }
-
-  // Проверяем состояние полива
-  checkWatering();
-}
-// Функция для увеличения счетчика
 void countFlow() {
   flowCount++;
 }
@@ -130,44 +80,86 @@ void checkWatering() {
     if (millis() - wateringStartTime >= wateringDuration * 60000) { // Переводим минуты в миллисекунды
       Serial.println("Полив остановлен.");
       isWatering = false;
+      digitalWrite(6, LOW);
       // Здесь можно добавить код для остановки насоса или клапана
     }
   } else {
     // Если полив не активен, можно добавить логику для его запуска
     // Например, можно запустить полив по кнопке или по расписанию
     // Для примера, запускаем полив, если нажата кнопка (необходимо подключить кнопку)
-    // if (digitalRead(buttonPin) == HIGH) {
-    //   startWatering();
-    // }
+     if (digitalRead(button_pin) == HIGH) {
+       Serial.println("СОСАААААААЛ!");
+       startWatering();
+     }
   }
 }
 
-// Функция для запуска полива
-void startWatering() {
-  Serial.println("Полив начат.");
-  isWatering = true;
-  wateringStartTime = millis();
-  // Здесь можно добавить код для включения насоса или клапана
+int ValueButton(){
+  int button_state = digitalRead(button_pin);
+//  Serial.println(button_state);
+  return button_state;
 }
 
+int MoistureSensor(){
+    int sensorValue = analogRead(sensorPin); // Считываем значение с датчика
+//    Serial.print("Soil Moisture Level: ");
+//    Serial.println(sensorValue); // Выводим значение в последовательный монитор
+    return sensorValue;
+}
 
-int WateringStateFunc(){
-  if (isWatering == false){
-    return "is stopped";
-  }
-  else if (isWatering == true){
-    return "is working";
-  }
+int SunLightSensor(){
+    Serial.print("//--------------------------------------//\r\n");
+    
+    int visible = SI1145.ReadVisible();
+    int ir = SI1145.ReadIR();
+    int uv = SI1145.ReadUV();
+
+//    Serial.print("Vis: "); Serial.println(visible);
+//    Serial.print("IR: "); Serial.println(ir);
+//    Serial.print("UV: "); Serial.println((float)uv / 100); // UV значение делим на 100
+//
+//    // Добавьте вывод текущего времени для отладки
+//    Serial.print("Current Time: "); Serial.println(millis());
+    
+    return visible;
+}
+int GasLevel(){
+  int GasSensorValue = analogRead(A2); // Чтение значения с аналогового пина A0
+//  Serial.print("MQ Sensor Value: ");
+//  Serial.println(GasSensorValue); // Вывод значения в последовательный монитор
+  return GasSensorValue;
+}
+int WateringProcess(){
+  // Проверяем, прошло ли 1 секунда
+  if (millis() - lastTime >= 1000) {
+    // Рассчитываем скорость потока в мл/с
+    flowRate = (flowCount * 1000.0) / 7.5; // Примерный коэффициент для миллилитров в секунду (может варьироваться)
+    
+    // Выводим данные в последовательный порт
+//    Serial.print("Счетчик: ");
+//    Serial.print(flowCount);
+//    Serial.print(" | Скорость потока: ");
+//    Serial.print(flowRate);
+//    Serial.println(" мл/с");
+    
+    // Сбрасываем счетчик
+    flowCount = 0;
+    lastTime = millis();
+
+    checkWatering();
+    
+    return flowCount;
+}
 }
 
 void setup() {
   Serial.begin(115200); // Инициализация последовательного порта
+  // button!!!
+  pinMode(button_pin, INPUT_PULLUP);
 
-  SI1145.Begin(); // SunLightSensor
+  SI1145.Begin();
 
-  pinMode(button_pin, INPUT_PULLUP); // button
-
-  // encoder
+  // encoder!!!
   pinMode(pinA, INPUT);
   pinMode(pinB, INPUT);
   
@@ -176,16 +168,6 @@ void setup() {
   
   // Настраиваем прерывания
   attachInterrupt(digitalPinToInterrupt(pinA), updateEncoder, CHANGE);
-
-  //полив
-    // Инициализация пина датчика как вход
-  pinMode(flowSensorPin, INPUT);
-    // Инициализация переменной счетчика
-  flowCount = 0;
-    // Прерывание на изменение состояния пина
-  attachInterrupt(digitalPinToInterrupt(flowSensorPin), countFlow, RISING);
-    // Установка времени последнего обновления
-  lastTime = millis();
 
 
   // display!!!
@@ -198,53 +180,71 @@ void setup() {
   display.setCursor(0, 0); // Установка курсора
   display.println("Welcome!"); // Вывод текста
 
+
+    // Инициализация пина датчика как вход
+  pinMode(flowSensorPin, INPUT);
+  
+  // Инициализация переменной счетчика
+  flowCount = 0;
+  
+  // Прерывание на изменение состояния пина
+  attachInterrupt(digitalPinToInterrupt(flowSensorPin), countFlow, RISING);
+  
+  // Установка времени последнего обновления
+  lastTime = millis();
+
+
   // Отображение на экране
   display.display();
   delay(50);
 }
 
-void loop() {
+
+void loop(){
   int valueButt = ValueButton();
   int moisture_value = MoistureSensor();
   int light_value = SunLightSensor();
-  int Watering_state = WateringStateFunc();
+  int gas_value = GasLevel();
+  int flow_value = WateringProcess();
+
+  if (valueButt == HIGH) {
+       Serial.println("СОСАААААААЛ!");
+       startWatering();
+     }
 
   display.clearDisplay();
   display.setTextSize(1); // Размер текста
   display.setTextColor(SSD1306_WHITE); // Цвет текста
-  display.setCursor(0, 0);
-  display.println("Area info");
   
-  display.setCursor(0, 10);
+  display.setCursor(0, 0);
   display.println("Encoder value:");
-  display.setCursor(90, 10);
+  display.setCursor(90, 0);
   display.println(encoderValue/2);
   
-  display.setCursor(0, 20); // Установка курсора
+  display.setCursor(0, 10); // Установка курсора
   display.println("Button value:");
-  display.setCursor(90, 20);
+  display.setCursor(90, 10);
   display.println(valueButt); // Вывод текста
 
-  display.setCursor(0, 30); // Установка курсора
+  display.setCursor(0, 20); // Установка курсора
   display.println("Moisture value:");
-  display.setCursor(90, 30);
+  display.setCursor(90, 20);
   display.println(moisture_value); // Вывод текста
   
-  display.setCursor(0, 40); // Установка курсора
+  display.setCursor(0, 30); // Установка курсора
   display.println("Light value:");
-  display.setCursor(90, 40);
+  display.setCursor(90, 30);
   display.println(light_value); // Вывод текста
 
+  display.setCursor(0, 40); // Установка курсора
+  display.println("Gas value:");
+  display.setCursor(90, 40);
+  display.println(gas_value); // Вывод текста
+
   display.setCursor(0, 50); // Установка курсора
-  display.println("Watering:");
-  display.setCursor(55, 50);
-  if (isWatering == false){
-    display.println("is stopped");
-  }
-  else if (isWatering == true){
-    display.println("is working");
-  }
- // Вывод текста
+  display.println("Flow value:");
+  display.setCursor(90, 50);
+  display.println(flow_value); // Вывод текста
   
   display.display();
 }
