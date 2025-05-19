@@ -148,7 +148,7 @@ int WateringProcess(){
 
     checkWatering();
     
-    return flowCount;
+    return flowRate;
 }
 }
 
